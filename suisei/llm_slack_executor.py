@@ -181,7 +181,7 @@ def _model_streamer(
         grounding_urls = []
         for grounding_chunk in grounding:
             grounding_urls.append(
-                f"<{grounding_chunk.web.title}|{grounding_chunk.web.uri}>"
+                f"<{grounding_chunk.web.uri}|{grounding_chunk.web.title}>"
             )
         client.chat_postMessage(
             channel=channel,

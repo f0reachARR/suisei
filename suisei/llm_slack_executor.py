@@ -176,6 +176,21 @@ def _model_streamer(
 
     print(chunks)
 
+    try:
+        grounding = chunks[-1].candidates[0].grounding_metadata.grounding_chunks
+        grounding_urls = []
+        for grounding_chunk in grounding:
+            grounding_urls.append(
+                f"<{grounding_chunk.web.title}|{grounding_chunk.web.uri}>"
+            )
+        client.chat_postMessage(
+            channel=channel,
+            text=f"Grounding: {" ".join(grounding_urls)}",
+            thread_ts=thread_ts,
+        )
+    except Exception as e:
+        logger.error(f"Failed to get grounding: {e}")
+
 
 def start_model_streamer(
     context: BoltContext,

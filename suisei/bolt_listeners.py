@@ -3,13 +3,13 @@ import traceback
 from typing import Literal, Union
 
 from slack_bolt import BoltContext
-from slack_sdk import WebClient
+from slack_sdk.web.async_client import AsyncWebClient as WebClient
 
 from .llm_slack_executor import start_model_streamer
 from .slack_utils import is_this_app_mentioned, remove_unused_element
 
 
-def _responder(
+async def _responder(
     context: BoltContext,
     payload: dict,
     client: WebClient,
@@ -46,14 +46,14 @@ def _responder(
 
     # スレッド内であれば過去の履歴を取得してLLMに渡す
     if thread_ts is not None:
-        history = client.conversations_replies(
+        history = await client.conversations_replies(
             channel=channel,
             ts=thread_ts,
         )
 
         # 全件取得できていない場合はエラーを返す
         if history["has_more"]:
-            client.chat_postMessage(
+            await client.chat_postMessage(
                 channel=channel,
                 text="スレッドが長すぎます",
                 thread_ts=thread_ts,
@@ -100,7 +100,7 @@ def _responder(
 
     logger.info(f"Input {len(messages)} messages")
 
-    start_model_streamer(
+    await start_model_streamer(
         context=context,
         client=client,
         logger=logger,
@@ -110,14 +110,14 @@ def _responder(
     )
 
 
-def respond_to_app_mention(
+async def respond_to_app_mention(
     context: BoltContext,
     payload: dict,
     client: WebClient,
     logger: logging.Logger,
 ):
     try:
-        _responder(
+        await _responder(
             context=context,
             payload=payload,
             client=client,
@@ -127,14 +127,14 @@ def respond_to_app_mention(
     except Exception as e:
         ex = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         logger.error(ex)
-        client.chat_postMessage(
+        await client.chat_postMessage(
             channel=payload["channel"],
             text=f"エラーが発生しました\n{ex}",
             thread_ts=payload["ts"],
         )
 
 
-def respond_to_message(
+async def respond_to_message(
     context: BoltContext,
     payload: dict,
     client: WebClient,
@@ -144,7 +144,7 @@ def respond_to_message(
         return
 
     try:
-        _responder(
+        await _responder(
             context=context,
             payload=payload,
             client=client,
@@ -154,7 +154,7 @@ def respond_to_message(
     except Exception as e:
         ex = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         logger.error(ex)
-        client.chat_postMessage(
+        await client.chat_postMessage(
             channel=payload["channel"],
             text=f"エラーが発生しました\n{ex}",
             thread_ts=payload["ts"],

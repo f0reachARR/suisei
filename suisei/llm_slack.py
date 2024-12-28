@@ -9,7 +9,7 @@ from .slack_utils import download_slack_image_content, parse_ts, remove_unused_e
 
 
 # SlackのmessageをLLM向けのdictに変換する
-def create_chat(context: BoltContext, message: dict) -> Content | None:
+async def create_chat(context: BoltContext, message: dict) -> Content | None:
     user_id: str = message["user"]
     text: str = message["text"]
     ts = parse_ts(message["ts"])
@@ -32,7 +32,7 @@ def create_chat(context: BoltContext, message: dict) -> Content | None:
 
         if len(files) > 0:
             for file in files:
-                type, file = download_slack_image_content(file["url_private"])
+                type, file = await download_slack_image_content(file["url_private"])
 
                 if len(file) > GEMINI_FILE_MAX_SIZE and GEMINI_FILE_MAX_SIZE != -1:
                     raise ValueError(f"File size is too large: {len(file)}")

@@ -1,3 +1,4 @@
+import asyncio
 from json import loads
 import logging
 import re
@@ -6,7 +7,7 @@ from typing import List
 
 import litellm
 from slack_bolt import BoltContext
-from slack_sdk import WebClient
+from slack_sdk.web.async_client import AsyncWebClient as WebClient
 from google.genai import Client
 from google.genai.types import (
     GenerateContentConfig,
@@ -45,7 +46,7 @@ test_function = dict(
 
 
 # ツール等に対応するため再帰できるように関数を切り出す
-def _model_streamer(
+async def _model_streamer(
     context: BoltContext,
     client: WebClient,
     logger: logging.Logger,
@@ -64,7 +65,6 @@ def _model_streamer(
                 Tool(
                     google_search=GoogleSearch(),
                 ),
-                Tool(function_declarations=[test_function]),
             ],
         ),
     )
@@ -80,7 +80,7 @@ def _model_streamer(
 
     tool_messages = []
 
-    def flush(is_finished: bool = False):
+    async def flush(is_finished: bool = False):
         nonlocal buffer
         nonlocal client
         nonlocal channel
@@ -118,13 +118,13 @@ def _model_streamer(
             if len(text) > 0:
                 logger.debug(f"Post message: {text} ({len(text)})")
 
-                client.chat_postMessage(
+                await client.chat_postMessage(
                     channel=channel,
                     text=text,
                     thread_ts=thread_ts,
                 )
 
-                time.sleep(1)  # 連続投稿を避けるために1秒待つ
+                await asyncio.sleep(1)  # 連続投稿を避けるために1秒待つ
 
             buffer = buffer[idx:]
 
@@ -172,7 +172,7 @@ def _model_streamer(
         finish_reason = chunk.candidates[0].finish_reason
         is_finished = finish_reason is not None
 
-        flush(is_finished)
+        await flush(is_finished)
 
         if is_finished:
             logger.info(f"Finish reason: {finish_reason}")
@@ -187,12 +187,12 @@ def _model_streamer(
             buffer.append(line)
 
     # 最後のメッセージを投稿
-    flush(True)
+    await flush(True)
 
     print(chunks)
 
 
-def start_model_streamer(
+async def start_model_streamer(
     context: BoltContext,
     client: WebClient,
     logger: logging.Logger,
@@ -200,7 +200,7 @@ def start_model_streamer(
     thread_ts: str,
     messages: List[dict],
 ):
-    llm_messages = [create_chat(context, message) for message in messages]
+    llm_messages = [await create_chat(context, message) for message in messages]
 
     if llm_messages[-1] is None:
         # メッセージが取得できなかった場合は反応しない
@@ -211,7 +211,7 @@ def start_model_streamer(
     if len(llm_messages) == 0:
         raise ValueError("No messages to send to LLM")
 
-    _model_streamer(
+    await _model_streamer(
         client=client,
         context=context,
         logger=logger,

@@ -1360,6 +1360,7 @@ name = "suichan"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "google-genai" },
     { name = "litellm" },
     { name = "numpydoc" },
@@ -1374,6 +1375,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.11.11" },
     { name = "google-genai", specifier = ">=0.3.0" },
     { name = "litellm", specifier = ">=1.55.12" },
     { name = "numpydoc", specifier = ">=1.8.0" },

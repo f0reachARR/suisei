@@ -4,7 +4,7 @@ from typing import Literal, Union
 from slack_bolt import BoltContext
 from slack_sdk import WebClient
 
-from .llm_slack_executor import model_streamer
+from .llm_slack_executor import start_model_streamer
 from .slack_utils import is_this_app_mentioned, remove_unused_element
 
 
@@ -99,7 +99,7 @@ def _responder(
 
     logger.info(f"Input {len(messages)} messages")
 
-    model_streamer(
+    start_model_streamer(
         context=context,
         client=client,
         logger=logger,

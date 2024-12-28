@@ -7,6 +7,7 @@ import litellm
 from slack_bolt import BoltContext
 from slack_sdk import WebClient
 
+from .tools.google import create_google_tools_if_available
 from .env import (
     GEMINI_SAFETY_SETTINGS,
     LITELLM_MAX_TOKENS,
@@ -18,44 +19,25 @@ from .llm_slack import create_chat
 from .llm_utils import build_system_prompt
 from .slack_format import format_assistant_reply
 
+
 # ツール等に対応するため再帰できるように関数を切り出す
-
-
-def model_streamer(
-    context: BoltContext,
+def _model_streamer(
     client: WebClient,
     logger: logging.Logger,
     channel: str,
     thread_ts: str,
     messages: List[dict],
 ):
-    llm_messages = [create_chat(context, message) for message in messages]
-
-    if llm_messages[-1] is None:
-        # メッセージが取得できなかった場合は反応しない
-        return
-
-    llm_messages = list(filter(lambda x: x is not None, llm_messages))
-
-    if len(llm_messages) == 0:
-        raise ValueError("No messages to send to LLM")
-
-    llm_messages = [
-        {
-            "role": "system",
-            "content": build_system_prompt(context),
-        }
-    ] + llm_messages
-
+    tools = create_google_tools_if_available(LITELLM_MODEL)
     response = litellm.completion(
-        messages=llm_messages,
+        messages=messages,
         timeout_seconds=LITELLM_TIMEOUT_SECONDS,
         model=LITELLM_MODEL,
         max_tokens=LITELLM_MAX_TOKENS,
         temperature=LITELLM_TEMPERATURE,
         stream=True,
         safety_settings=GEMINI_SAFETY_SETTINGS,
-        tools=[{"googleSearch": {}}],
+        tools=tools,
     )
 
     # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
@@ -170,3 +152,39 @@ def model_streamer(
 
     # 最後のメッセージを投稿
     flush(True)
+
+
+def start_model_streamer(
+    context: BoltContext,
+    client: WebClient,
+    logger: logging.Logger,
+    channel: str,
+    thread_ts: str,
+    messages: List[dict],
+):
+    llm_messages = [create_chat(context, message) for message in messages]
+
+    if llm_messages[-1] is None:
+        # メッセージが取得できなかった場合は反応しない
+        return
+
+    llm_messages: List[dict] = list(filter(lambda x: x is not None, llm_messages))
+
+    if len(llm_messages) == 0:
+        raise ValueError("No messages to send to LLM")
+
+    llm_messages = [
+        {
+            "role": "system",
+            "content": build_system_prompt(context),
+        }
+    ] + llm_messages
+
+    _model_streamer(
+        client=client,
+        context=context,
+        logger=logger,
+        channel=channel,
+        thread_ts=thread_ts,
+        messages=llm_messages,
+    )

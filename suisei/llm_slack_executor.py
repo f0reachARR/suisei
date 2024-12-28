@@ -16,7 +16,14 @@ from google.genai.types import (
     GoogleSearch,
     ToolCodeExecution,
     GenerateContentResponse,
+    LiveConnectConfig,
+    GenerationConfig,
+    LiveClientContent,
+    FunctionDeclaration,
+    LiveClientToolResponse,
+    FunctionResponse,
 )
+from google.genai.live import AsyncSession
 
 from .env import (
     GEMINI_API_KEY,
@@ -28,21 +35,21 @@ from .llm_slack import create_chat
 from .llm_utils import build_system_prompt
 from .slack_format import format_assistant_reply
 
-gemini = Client(api_key=GEMINI_API_KEY)
-test_function = dict(
-    name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type": "OBJECT",
-        "properties": {
-            "location": {
-                "type": "STRING",
-                "description": "The city and state, e.g. San Francisco, CA",
-            },
-        },
-        "required": ["location"],
-    },
-)
+gemini = Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1alpha"})
+
+
+def get_current_weather(
+    location: str,
+) -> int:
+    """Returns the current weather.
+
+    Args:
+      location: The city and state, e.g. San Francisco, CA
+    """
+    return "sunny"
+
+
+INLINE_CODEBLOCK_RE = re.compile(r"(.+)```")
 
 
 # ツール等に対応するため再帰できるように関数を切り出す
@@ -54,31 +61,30 @@ async def _model_streamer(
     thread_ts: str,
     messages: List[Content],
 ):
-    response = gemini.models.generate_content_stream(
-        model=GEMINI_MODEL,
-        contents=messages,
-        config=GenerateContentConfig(
+    config = LiveConnectConfig(
+        system_instruction=build_system_prompt(context),
+        tools=[
+            Tool(google_search=GoogleSearch()),
+            Tool(code_execution=ToolCodeExecution()),
+            Tool(
+                function_declarations=[
+                    FunctionDeclaration.from_function(gemini, get_current_weather)
+                ]
+            ),
+        ],
+        response_modalities=["TEXT"],
+        generation_config=GenerationConfig(
             temperature=GEMINI_TEMPERATURE,
             max_output_tokens=GEMINI_MAX_TOKENS,
-            system_instruction=build_system_prompt(context),
-            tools=[
-                Tool(
-                    google_search=GoogleSearch(),
-                ),
-            ],
         ),
     )
+    live_input = LiveClientContent(turns=messages, turn_complete=True)
 
-    # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
-    # streamなので、だんだん投稿される感じになる
-    chunks: List[GenerateContentResponse] = []
     buffer: List[str] = []
     remain_message = ""
     complete_message = ""
     is_same_message = False
     same_message: List[str] = []
-
-    tool_messages = []
 
     async def flush(is_finished: bool = False):
         nonlocal buffer
@@ -128,55 +134,81 @@ async def _model_streamer(
 
             buffer = buffer[idx:]
 
-    INLINE_CODEBLOCK_RE = re.compile(r"(.+)```")
-    for chunk in response:
-        chunks.append(chunk)
+    # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
+    # streamなので、だんだん投稿される感じになる
+    async with gemini.aio.live.connect(model=GEMINI_MODEL, config=config) as session:
+        session: AsyncSession = session
+        await session.send(live_input)
+        async for response in session.receive():
+            print(response)
 
-        item = chunk.candidates[0].content.parts[0]
+            has_item = (
+                response.server_content is not None
+                and response.server_content.model_turn is not None
+                and response.server_content.model_turn.parts is not None
+                and len(response.server_content.model_turn.parts) > 0
+            )
+            turn = response.server_content.model_turn.parts[0] if has_item else None
+            is_finished = (
+                response.server_content.turn_complete
+                if response.server_content is not None
+                else False
+            )
 
-        delta_content: str | None = item.text
-        if delta_content is not None:
-            complete_message += delta_content
-            # 最後の\nまでのメッセージを分割してbufferに追加
-            idx = delta_content.rfind("\n")
-            if idx == -1:
-                remain_message += delta_content
-            else:
-                part = remain_message + delta_content[: idx + 1]
+            if has_item and turn.text is not None:
+                delta_content = turn.text
+                complete_message += delta_content
+                # 最後の\nまでのメッセージを分割してbufferに追加
+                idx = delta_content.rfind("\n")
+                if idx == -1:
+                    remain_message += delta_content
+                else:
+                    part = remain_message + delta_content[: idx + 1]
 
-                # 行の途中で出てきたコードブロックは改行させる
-                if INLINE_CODEBLOCK_RE.match(part):
-                    part = INLINE_CODEBLOCK_RE.sub(r"\1\n```", part)
+                    # 行の途中で出てきたコードブロックは改行させる
+                    if INLINE_CODEBLOCK_RE.match(part):
+                        part = INLINE_CODEBLOCK_RE.sub(r"\1\n```", part)
 
-                for line in part.split("\n"):
-                    line = line.rstrip("\n ")
-                    if not is_same_message and line.startswith("```"):
-                        is_same_message = True
-                        same_message.clear()
-                        same_message.append(line)
-                    elif is_same_message:
-                        same_message.append(line)
-                        if line.find("```") != -1:
-                            is_same_message = False
-                            buffer.append("\n".join(same_message))
-                    else:
-                        buffer.append(line)
-                remain_message = delta_content[idx + 1 :]
+                    for line in part.split("\n"):
+                        line = line.rstrip("\n ")
+                        if not is_same_message and line.startswith("```"):
+                            is_same_message = True
+                            same_message.clear()
+                            same_message.append(line)
+                        elif is_same_message:
+                            same_message.append(line)
+                            if line.find("```") != -1:
+                                is_same_message = False
+                                buffer.append("\n".join(same_message))
+                        else:
+                            buffer.append(line)
+                    remain_message = delta_content[idx + 1 :]
 
-        delta_tool = item.function_call
-        if delta_tool is not None:
-            for tool in delta_tool:
-                print(tool)
+            if response.tool_call is not None:
+                function_calls = response.tool_call.function_calls
+                function_calls = function_calls if function_calls is not None else []
 
-        # メッセージが終了している場合は終了
-        finish_reason = chunk.candidates[0].finish_reason
-        is_finished = finish_reason is not None
+                for function_call in function_calls:
+                    if function_call.name == "get_current_weather":
+                        weather = get_current_weather(**function_call.args)
+                        await session.send(
+                            LiveClientToolResponse(
+                                function_responses=[
+                                    FunctionResponse(
+                                        id=function_call.id,
+                                        name=function_call.name,
+                                        response={"output": weather},
+                                    )
+                                ]
+                            )
+                        )
 
-        await flush(is_finished)
+            # メッセージが終了している場合は終了
+            await flush(is_finished)
 
-        if is_finished:
-            logger.info(f"Finish reason: {finish_reason}")
-            break
+            if is_finished:
+                logger.info(f"Finished")
+                break
 
     # 最後のメッセージを処理
     if is_same_message:
@@ -188,8 +220,6 @@ async def _model_streamer(
 
     # 最後のメッセージを投稿
     await flush(True)
-
-    print(chunks)
 
 
 async def start_model_streamer(

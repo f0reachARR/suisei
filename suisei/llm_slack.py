@@ -1,7 +1,7 @@
 from base64 import b64encode
 
 from slack_bolt import BoltContext
-from google.genai.types import Content, Part, FileData
+from google.genai.types import Content, Part, FileData, Blob
 
 from .env import GEMINI_FILE_MAX_SIZE
 from .llm_utils import datetime_to_string
@@ -42,8 +42,8 @@ async def create_chat(context: BoltContext, message: dict) -> Content | None:
 
                 content.parts.append(
                     Part(
-                        file_data=FileData(
-                            file_uri=encoded_file_with_type,
+                        inline_data=Blob(
+                            data=file,
                             mime_type=type,
                         )
                     )

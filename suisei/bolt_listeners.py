@@ -1,4 +1,5 @@
 import logging
+import traceback
 from typing import Literal, Union
 
 from slack_bolt import BoltContext
@@ -124,10 +125,11 @@ def respond_to_app_mention(
             type="mention",
         )
     except Exception as e:
-        logger.error(e)
+        ex = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+        logger.error(ex)
         client.chat_postMessage(
             channel=payload["channel"],
-            text=f"エラーが発生しました {e}",
+            text=f"エラーが発生しました\n{ex}",
             thread_ts=payload["ts"],
         )
 
@@ -150,9 +152,10 @@ def respond_to_message(
             type="message",
         )
     except Exception as e:
-        logger.error(e)
+        ex = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+        logger.error(ex)
         client.chat_postMessage(
             channel=payload["channel"],
-            text=f"エラーが発生しました {e}",
+            text=f"エラーが発生しました\n{ex}",
             thread_ts=payload["ts"],
         )

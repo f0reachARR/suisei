@@ -28,20 +28,6 @@ from .llm_utils import build_system_prompt
 from .slack_format import format_assistant_reply
 
 gemini = Client(api_key=GEMINI_API_KEY)
-test_function = dict(
-    name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type": "OBJECT",
-        "properties": {
-            "location": {
-                "type": "STRING",
-                "description": "The city and state, e.g. San Francisco, CA",
-            },
-        },
-        "required": ["location"],
-    },
-)
 
 
 # ツール等に対応するため再帰できるように関数を切り出す
@@ -63,8 +49,9 @@ def _model_streamer(
             tools=[
                 Tool(
                     google_search=GoogleSearch(),
+                    function_declarations=[test_function],
+                    code_execution=ToolCodeExecution(),
                 ),
-                Tool(function_declarations=[test_function]),
             ],
         ),
     )

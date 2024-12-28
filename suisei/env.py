@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_SYSTEM_TEXT = ""
-SYSTEM_TEXT = os.environ.get("LITELLM_SYSTEM_TEXT", DEFAULT_SYSTEM_TEXT)
+SYSTEM_TEXT = os.environ.get("GEMINI_SYSTEM_TEXT", DEFAULT_SYSTEM_TEXT)
 
 assert SYSTEM_TEXT != ""
 

@@ -1,3 +1,4 @@
+from json import loads
 import logging
 import re
 import time
@@ -6,48 +7,78 @@ from typing import List
 import litellm
 from slack_bolt import BoltContext
 from slack_sdk import WebClient
+from google.genai import Client
+from google.genai.types import (
+    GenerateContentConfig,
+    Content,
+    Tool,
+    GoogleSearch,
+    ToolCodeExecution,
+    GenerateContentResponse,
+)
 
-from .tools.google import create_google_tools_if_available
 from .env import (
-    GEMINI_SAFETY_SETTINGS,
-    LITELLM_MAX_TOKENS,
-    LITELLM_MODEL,
-    LITELLM_TEMPERATURE,
-    LITELLM_TIMEOUT_SECONDS,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GEMINI_MAX_TOKENS,
+    GEMINI_TEMPERATURE,
 )
 from .llm_slack import create_chat
 from .llm_utils import build_system_prompt
 from .slack_format import format_assistant_reply
 
+gemini = Client(api_key=GEMINI_API_KEY)
+test_function = dict(
+    name="get_current_weather",
+    description="Get the current weather in a given location",
+    parameters={
+        "type": "OBJECT",
+        "properties": {
+            "location": {
+                "type": "STRING",
+                "description": "The city and state, e.g. San Francisco, CA",
+            },
+        },
+        "required": ["location"],
+    },
+)
+
 
 # ツール等に対応するため再帰できるように関数を切り出す
 def _model_streamer(
+    context: BoltContext,
     client: WebClient,
     logger: logging.Logger,
     channel: str,
     thread_ts: str,
-    messages: List[dict],
+    messages: List[Content],
 ):
-    tools = create_google_tools_if_available(LITELLM_MODEL)
-    response = litellm.completion(
-        messages=messages,
-        timeout_seconds=LITELLM_TIMEOUT_SECONDS,
-        model=LITELLM_MODEL,
-        max_tokens=LITELLM_MAX_TOKENS,
-        temperature=LITELLM_TEMPERATURE,
-        stream=True,
-        safety_settings=GEMINI_SAFETY_SETTINGS,
-        tools=tools,
+    response = gemini.models.generate_content_stream(
+        model=GEMINI_MODEL,
+        contents=messages,
+        config=GenerateContentConfig(
+            temperature=GEMINI_TEMPERATURE,
+            max_output_tokens=GEMINI_MAX_TOKENS,
+            system_instruction=build_system_prompt(context),
+            tools=[
+                Tool(
+                    google_search=GoogleSearch(),
+                ),
+                Tool(function_declarations=[test_function]),
+            ],
+        ),
     )
 
     # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
     # streamなので、だんだん投稿される感じになる
-    chunks = []
+    chunks: List[GenerateContentResponse] = []
     buffer: List[str] = []
     remain_message = ""
     complete_message = ""
     is_same_message = False
     same_message: List[str] = []
+
+    tool_messages = []
 
     def flush(is_finished: bool = False):
         nonlocal buffer
@@ -101,17 +132,17 @@ def _model_streamer(
     for chunk in response:
         chunks.append(chunk)
 
-        item = chunk.choices[0]
+        item = chunk.candidates[0].content.parts[0]
 
-        delta: str | None = item.get("delta", {}).get("content")
-        if delta is not None:
-            complete_message += delta
+        delta_content: str | None = item.text
+        if delta_content is not None:
+            complete_message += delta_content
             # 最後の\nまでのメッセージを分割してbufferに追加
-            idx = delta.rfind("\n")
+            idx = delta_content.rfind("\n")
             if idx == -1:
-                remain_message += delta
+                remain_message += delta_content
             else:
-                part = remain_message + delta[: idx + 1]
+                part = remain_message + delta_content[: idx + 1]
 
                 # 行の途中で出てきたコードブロックは改行させる
                 if INLINE_CODEBLOCK_RE.match(part):
@@ -130,13 +161,22 @@ def _model_streamer(
                             buffer.append("\n".join(same_message))
                     else:
                         buffer.append(line)
-                remain_message = delta[idx + 1 :]
-        # メッセージが終了している場合は終了
-        if item.get("finish_reason") is not None:
-            logger.info(f"Finish reason: {item['finish_reason']}")
-            break
+                remain_message = delta_content[idx + 1 :]
 
-        flush(item.get("finish_reason") is not None)
+        delta_tool = item.function_call
+        if delta_tool is not None:
+            for tool in delta_tool:
+                print(tool)
+
+        # メッセージが終了している場合は終了
+        finish_reason = chunk.candidates[0].finish_reason
+        is_finished = finish_reason is not None
+
+        flush(is_finished)
+
+        if is_finished:
+            logger.info(f"Finish reason: {finish_reason}")
+            break
 
     # 最後のメッセージを処理
     if is_same_message:
@@ -146,12 +186,10 @@ def _model_streamer(
         for line in remain_message.split("\n"):
             buffer.append(line)
 
-    llm_response = litellm.stream_chunk_builder(chunks, messages=messages)
-
-    logger.debug(f"Complete message: {llm_response.model_dump_json()}")
-
     # 最後のメッセージを投稿
     flush(True)
+
+    print(chunks)
 
 
 def start_model_streamer(
@@ -168,17 +206,10 @@ def start_model_streamer(
         # メッセージが取得できなかった場合は反応しない
         return
 
-    llm_messages: List[dict] = list(filter(lambda x: x is not None, llm_messages))
+    llm_messages: List[Content] = list(filter(lambda x: x is not None, llm_messages))
 
     if len(llm_messages) == 0:
         raise ValueError("No messages to send to LLM")
-
-    llm_messages = [
-        {
-            "role": "system",
-            "content": build_system_prompt(context),
-        }
-    ] + llm_messages
 
     _model_streamer(
         client=client,

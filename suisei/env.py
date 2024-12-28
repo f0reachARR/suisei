@@ -9,13 +9,18 @@ SYSTEM_TEXT = os.environ.get("LITELLM_SYSTEM_TEXT", DEFAULT_SYSTEM_TEXT)
 
 assert SYSTEM_TEXT != ""
 
-LITELLM_TIMEOUT_SECONDS = int(os.environ.get("LITELLM_TIMEOUT_SECONDS", "30"))
-LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "gemini/gemini-2.0-flash-exp")
-LITELLM_TEMPERATURE = float(os.environ.get("LITELLM_TEMPERATURE", "1"))
-LITELLM_MAX_TOKENS = int(os.environ.get("LITELLM_MAX_TOKENS", "8192"))
-LITELLM_FILE_MAX_SIZE = int(os.environ.get("LITELLM_FILE_MAX_SIZE", "-1"))
+# LITELLM_TIMEOUT_SECONDS = int(os.environ.get("LITELLM_TIMEOUT_SECONDS", "30"))
+# LITELLM_MODEL = os.environ.get("LITELLM_MODEL", "gemini/gemini-2.0-flash-exp")
+# LITELLM_TEMPERATURE = float(os.environ.get("LITELLM_TEMPERATURE", "1"))
+# LITELLM_MAX_TOKENS = int(os.environ.get("LITELLM_MAX_TOKENS", "8192"))
 
-TRANSLATE_MARKDOWN = os.environ.get("TRANSLATE_MARKDOWN", "false") == "true"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MAX_TOKENS = int(os.environ.get("GEMINI_MAX_TOKENS", "8192"))
+GEMINI_TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "1"))
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_FILE_MAX_SIZE = int(os.environ.get("GEMINI_FILE_MAX_SIZE", "-1"))
+
+assert GEMINI_API_KEY is not None
 
 SLACK_APP_LOG_LEVEL = os.environ.get("SLACK_APP_LOG_LEVEL", "INFO")
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")

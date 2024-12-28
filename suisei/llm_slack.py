@@ -1,24 +1,22 @@
 from base64 import b64encode
 
 from slack_bolt import BoltContext
+from google.genai.types import Content, Part, FileData
 
-from .env import LITELLM_FILE_MAX_SIZE
+from .env import GEMINI_FILE_MAX_SIZE
 from .llm_utils import datetime_to_string
 from .slack_utils import download_slack_image_content, parse_ts, remove_unused_element
 
 
 # SlackのmessageをLLM向けのdictに変換する
-def create_chat(context: BoltContext, message: dict) -> dict | None:
+def create_chat(context: BoltContext, message: dict) -> Content | None:
     user_id: str = message["user"]
     text: str = message["text"]
     ts = parse_ts(message["ts"])
     dt = datetime_to_string(ts)
 
     if user_id == context.bot_user_id:
-        return {
-            "role": "assistant",
-            "content": text,
-        }
+        return Content(role="model", parts=[Part(text=text)])
 
     else:
         text = remove_unused_element(context, text)
@@ -27,34 +25,28 @@ def create_chat(context: BoltContext, message: dict) -> dict | None:
         if text == "" and len(files) == 0:
             return None
 
-        contents = []
+        content = Content(role="user", parts=[])
 
         if text != "":
-            contents.append(
-                {
-                    "type": "text",
-                    "text": f"<@{user_id}> {dt} {text}",
-                }
-            )
+            content.parts.append(Part(text=f"<@{user_id}> {dt} {text}"))
 
         if len(files) > 0:
             for file in files:
                 type, file = download_slack_image_content(file["url_private"])
 
-                if len(file) > LITELLM_FILE_MAX_SIZE and LITELLM_FILE_MAX_SIZE != -1:
+                if len(file) > GEMINI_FILE_MAX_SIZE and GEMINI_FILE_MAX_SIZE != -1:
                     raise ValueError(f"File size is too large: {len(file)}")
 
                 encoded_file = b64encode(file).decode("utf-8")
                 encoded_file_with_type = f"data:{type};base64,{encoded_file}"
 
-                contents.append(
-                    {
-                        "type": "image_url",
-                        "image_url": encoded_file_with_type,
-                    }
+                content.parts.append(
+                    Part(
+                        file_data=FileData(
+                            file_uri=encoded_file_with_type,
+                            mime_type=type,
+                        )
+                    )
                 )
 
-        return {
-            "role": "user",
-            "content": contents,
-        }
+        return content

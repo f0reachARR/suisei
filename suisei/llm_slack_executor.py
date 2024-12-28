@@ -49,8 +49,6 @@ def _model_streamer(
             tools=[
                 Tool(
                     google_search=GoogleSearch(),
-                    function_declarations=[test_function],
-                    code_execution=ToolCodeExecution(),
                 ),
             ],
         ),

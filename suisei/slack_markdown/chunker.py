@@ -64,7 +64,7 @@ class Chunker:
                 # tableは必ず1つ
                 result.append(chunk)
                 result.append([element])
-                result = []
+                chunk = []
             elif type == "thematic_break":
                 # --- が来たら区切る
                 result.append(chunk)
@@ -76,6 +76,20 @@ class Chunker:
             result.append(chunk)
 
         return list(filter(lambda x: len(x) > 0, result))
+
+    def _is_empty(self, elements: List[Element]) -> bool:
+        if len(elements) == 0:
+            return True
+
+        meaningless = ["thematic_break", "blank_line"]
+        for element in elements:
+            if element.get_type(snake_case=True) not in meaningless:
+                return False
+
+        return True
+
+    def _fix_rendered(self, elements: List[dict]) -> List[dict]:
+        return elements
 
     def consume(self) -> Tuple[dict, str] | None:
         markdown = "\n".join(self.lines)
@@ -91,6 +105,13 @@ class Chunker:
             return None
 
         first = consumable[0]
+
+        # 空の場合は無視
+        print(first)
+        if self._is_empty(first):
+            self.index += len(first)
+            return None
+
         doc = Document()
         doc.children = first
 
@@ -101,8 +122,14 @@ class Chunker:
             if len(markdown) < self.max_chunk_size:
                 return None
 
-        print(doc)
-        rendered = SlackRenderer.postprocess(self.md.render(doc))
         self.index += len(first)
+
+        raw_rendered = self.md.render(doc)
+        if not SlackRenderer.validate(raw_rendered):
+            raw_rendered = self._fix_rendered(raw_rendered)
+            if not SlackRenderer.validate(raw_rendered):
+                raise ValueError("Invalid rendered markdown")
+
+        rendered = SlackRenderer.postprocess(raw_rendered)
 
         return (rendered, reference_md)

@@ -46,6 +46,20 @@ class SlackRenderer(Renderer):
 
         return rendered
 
+    @staticmethod
+    def validate(element: dict) -> bool:
+        if not isinstance(element, dict):
+            return False
+        if "type" not in element:
+            return False
+        if element["type"].startswith("_"):
+            return False
+        if "elements" in element:
+            for child in element["elements"]:
+                if not SlackRenderer.validate(child):
+                    return False
+        return True
+
     def render_children(self, element: Any) -> Any:
         rendered = [self.render(child) for child in element.children]  # type: ignore
         rendered = list(filter(None, rendered))

@@ -284,7 +284,7 @@ class SlackRenderer(Renderer):
         return self.render_raw_text(cast("inline.RawText", element))
 
     def render_raw_text(self, element: inline.RawText) -> str:
-        return [{"type": "text", "text": self.escape_html(element.children)}]
+        return [{"type": "text", "text": element.children}]
 
     def render_line_break(self, element: inline.LineBreak) -> str:
         return [{"type": "text", "text": "\n"}]

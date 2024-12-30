@@ -7,6 +7,7 @@ from urllib.parse import quote
 from marko.renderer import Renderer
 from marko.md_renderer import MarkdownRenderer
 from marko import block, inline
+from marko.ext.gfm.elements import Table
 
 
 class SlackRenderer(Renderer):
@@ -256,6 +257,17 @@ class SlackRenderer(Renderer):
 
     def render_line_break(self, element: inline.LineBreak) -> str:
         return [{"type": "text", "text": "\n"}]
+
+    def render_table(self, element: Table) -> str:
+        from io import StringIO
+        from csv import writer
+
+        with StringIO() as f:
+            w = writer(f, lineterminator="\n")
+            for row in element.children:
+                w.writerow([self.md.render(cell) for cell in row.children])
+
+            return [{"type": "_embed_file", "content": f.getvalue(), "ext": "csv"}]
 
     @staticmethod
     def escape_html(raw: str) -> str:

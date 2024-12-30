@@ -7,12 +7,17 @@ requires-python = ">=3.11"
 dependencies = [
     "google-genai>=0.3.0",
     "litellm>=1.55.12",
+    "marko>=2.1.2",
     "numpydoc>=1.8.0",
     "pillow>=11.0.0",
     "pygithub>=2.5.0",
+    "pytest>=8.3.4",
     "python-dotenv>=1.0.1",
     "pytz>=2024.2",
     "requests>=2.32.3",
     "slack-bolt>=1.22.0",
     "slack-sdk>=3.34.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 DEFAULT_SYSTEM_TEXT = ""
 SYSTEM_TEXT = os.environ.get("GEMINI_SYSTEM_TEXT", DEFAULT_SYSTEM_TEXT)

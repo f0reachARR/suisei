@@ -164,7 +164,9 @@ class SlackRenderer(Renderer):
         return self.render_heading(cast("block.Heading", element))
 
     def render_blank_line(self, element: block.BlankLine) -> str:
-        return []
+        return [
+            {"type": "rich_text_section", "elements": [{"type": "text", "text": "\n"}]}
+        ]
 
     def render_link_ref_def(self, element: block.LinkRefDef) -> str:
         return []

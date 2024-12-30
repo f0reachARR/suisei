@@ -4,7 +4,6 @@ import re
 import time
 from typing import List
 
-import litellm
 from slack_bolt import BoltContext
 from slack_sdk import WebClient
 from google.genai import Client
@@ -13,10 +12,10 @@ from google.genai.types import (
     Content,
     Tool,
     GoogleSearch,
-    ToolCodeExecution,
     GenerateContentResponse,
 )
 
+from .slack_markdown.chunker import Chunker
 from .env import (
     GEMINI_API_KEY,
     GEMINI_MODEL,
@@ -25,7 +24,6 @@ from .env import (
 )
 from .llm_slack import create_chat
 from .llm_utils import build_system_prompt
-from .slack_format import format_assistant_reply
 
 gemini = Client(api_key=GEMINI_API_KEY)
 
@@ -39,6 +37,7 @@ def _model_streamer(
     thread_ts: str,
     messages: List[Content],
 ):
+    print(build_system_prompt(context))
     response = gemini.models.generate_content_stream(
         model=GEMINI_MODEL,
         contents=messages,
@@ -57,63 +56,29 @@ def _model_streamer(
     # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
     # streamなので、だんだん投稿される感じになる
     chunks: List[GenerateContentResponse] = []
-    buffer: List[str] = []
-    remain_message = ""
-    complete_message = ""
-    is_same_message = False
-    same_message: List[str] = []
+    chunker = Chunker()
 
-    tool_messages = []
-
-    def flush(is_finished: bool = False):
-        nonlocal buffer
+    def flush():
+        nonlocal chunker
         nonlocal client
         nonlocal channel
         nonlocal thread_ts
 
-        # bufferを投稿していく
-        while len(buffer) > 0:
-            idx = 1
-            text_plus1 = ""
-            enforce_send = False
-            while idx < len(buffer) - 1:
-                text_plus1 = "\n".join(buffer[: idx + 1])
-                if buffer[idx] != "---" and buffer[idx + 1] == "---":
-                    enforce_send = True
-                    break
-                if len(text_plus1) > 1024:
-                    break
-                idx += 1
-
-            text = "\n".join(filter(lambda x: x != "---", buffer[:idx]))
-
-            print(buffer)
-
-            # 全部足しても1024文字以下なら保留・終了理由がある場合は投稿
-            if (
-                len(text_plus1) <= 1024
-                and len(text) < 1024
-                and not is_finished
-                and not enforce_send
-            ):
+        while True:
+            result = chunker.consume()
+            if result is None:
                 break
 
-            text = format_assistant_reply(text)
+            blocks, text = result
+            client.chat_postMessage(
+                channel=channel,
+                text=text,
+                thread_ts=thread_ts,
+                blocks=blocks,
+            )
 
-            if len(text) > 0:
-                logger.debug(f"Post message: {text} ({len(text)})")
+            time.sleep(1)  # 連続投稿を避けるために1秒待つ
 
-                client.chat_postMessage(
-                    channel=channel,
-                    text=text,
-                    thread_ts=thread_ts,
-                )
-
-                time.sleep(1)  # 連続投稿を避けるために1秒待つ
-
-            buffer = buffer[idx:]
-
-    INLINE_CODEBLOCK_RE = re.compile(r"(.+)```")
     for chunk in response:
         chunks.append(chunk)
 
@@ -121,32 +86,8 @@ def _model_streamer(
 
         delta_content: str | None = item.text
         if delta_content is not None:
-            complete_message += delta_content
-            # 最後の\nまでのメッセージを分割してbufferに追加
-            idx = delta_content.rfind("\n")
-            if idx == -1:
-                remain_message += delta_content
-            else:
-                part = remain_message + delta_content[: idx + 1]
-
-                # 行の途中で出てきたコードブロックは改行させる
-                if INLINE_CODEBLOCK_RE.match(part):
-                    part = INLINE_CODEBLOCK_RE.sub(r"\1\n```", part)
-
-                for line in part.split("\n"):
-                    line = line.rstrip("\n ")
-                    if not is_same_message and line.startswith("```"):
-                        is_same_message = True
-                        same_message.clear()
-                        same_message.append(line)
-                    elif is_same_message:
-                        same_message.append(line)
-                        if line.find("```") != -1:
-                            is_same_message = False
-                            buffer.append("\n".join(same_message))
-                    else:
-                        buffer.append(line)
-                remain_message = delta_content[idx + 1 :]
+            chunker.feed(delta_content)
+            flush()
 
         delta_tool = item.function_call
         if delta_tool is not None:
@@ -157,22 +98,13 @@ def _model_streamer(
         finish_reason = chunk.candidates[0].finish_reason
         is_finished = finish_reason is not None
 
-        flush(is_finished)
-
         if is_finished:
             logger.info(f"Finish reason: {finish_reason}")
             break
 
-    # 最後のメッセージを処理
-    if is_same_message:
-        buffer.append("\n".join(same_message))
-
-    if len(remain_message) > 0:
-        for line in remain_message.split("\n"):
-            buffer.append(line)
-
     # 最後のメッセージを投稿
-    flush(True)
+    chunker.finish()
+    flush()
 
     print(chunks)
 
@@ -185,7 +117,7 @@ def _model_streamer(
             )
         client.chat_postMessage(
             channel=channel,
-            text=f"Grounding: {" ".join(grounding_urls)}",
+            text=f"Grounding: {''.join(grounding_urls)}",
             thread_ts=thread_ts,
         )
     except Exception as e:

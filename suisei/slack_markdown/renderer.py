@@ -134,7 +134,7 @@ class SlackRenderer(Renderer):
             "elements": [
                 {
                     "type": "text",
-                    "text": html.escape(element.children[0].children).strip(),  # type: ignore
+                    "text": element.children[0].children.strip(),  # type: ignore
                 }
             ],
         }
@@ -163,10 +163,10 @@ class SlackRenderer(Renderer):
         return self.render_heading(cast("block.Heading", element))
 
     def render_blank_line(self, element: block.BlankLine) -> str:
-        return None
+        return []
 
     def render_link_ref_def(self, element: block.LinkRefDef) -> str:
-        return None
+        return []
 
     def _render_text_style(
         self,
@@ -175,7 +175,11 @@ class SlackRenderer(Renderer):
             Literal["italic"], Literal["bold"], Literal["strike"], Literal["code"]
         ],
     ) -> str:
-        children = self.render_children(element)
+        children = (
+            self.render_children(element)
+            if isinstance(element.children, list)
+            else element.children
+        )
         if all(isinstance(child, str) for child in children):
             return [
                 {
@@ -213,7 +217,7 @@ class SlackRenderer(Renderer):
 
     def render_plain_text(self, element: Any) -> str:
         if isinstance(element.children, str):
-            return self.escape_html(element.children)
+            return self.render_raw_text(cast("inline.RawText", element))
         return self.render_children(element)
 
     def render_link(self, element: inline.Link) -> dict:

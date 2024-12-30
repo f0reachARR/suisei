@@ -48,16 +48,16 @@ class SlackRenderer(Renderer):
 
     @staticmethod
     def validate(element: dict) -> bool:
+        if isinstance(element, list):
+            return all(SlackRenderer.validate(child) for child in element)
         if not isinstance(element, dict):
             return False
         if "type" not in element:
             return False
         if element["type"].startswith("_"):
             return False
-        if "elements" in element:
-            for child in element["elements"]:
-                if not SlackRenderer.validate(child):
-                    return False
+        if "elements" in element and element["type"].startswith("rich_text"):
+            return all(SlackRenderer.validate(child) for child in element["elements"])
         return True
 
     def render_children(self, element: Any) -> Any:
@@ -103,11 +103,26 @@ class SlackRenderer(Renderer):
                 "indent": self.list_indent - 1,
             }
         ]
-        for child in children:
-            if isinstance(child, dict) and child["type"] == "rich_text_list":
-                rendered.append(child)
-            else:
-                rendered[0]["elements"].append(child)
+
+        all_section = all(child["type"] == "rich_text_section" for child in children)
+        if all_section:
+            rendered[0]["elements"] = [
+                {
+                    "type": "rich_text_section",
+                    "elements": sum(list(map(lambda x: x["elements"], children)), []),
+                }
+            ]
+        else:
+            for child in children:
+                if isinstance(child, dict) and child["type"] == "rich_text_list":
+                    rendered.append(child)
+                elif (
+                    isinstance(child, dict)
+                    and child["type"] == "rich_text_preformatted"
+                ):
+                    rendered.append(child)
+                else:
+                    rendered[0]["elements"].append(child)
         return rendered
 
     def render_quote(self, element: block.Quote) -> str:
@@ -283,7 +298,9 @@ class SlackRenderer(Renderer):
             for row in element.children:
                 w.writerow([self.md.render(cell) for cell in row.children])
 
-            return [{"type": "_embed_file", "content": f.getvalue(), "ext": "csv"}]
+            return [
+                {"type": "_embed_file", "content": f.getvalue(), "name": "table.csv"}
+            ]
 
     @staticmethod
     def escape_html(raw: str) -> str:

@@ -128,8 +128,67 @@ class Chunker:
         if not SlackRenderer.validate(raw_rendered):
             raw_rendered = self._fix_rendered(raw_rendered)
             if not SlackRenderer.validate(raw_rendered):
-                raise ValueError("Invalid rendered markdown")
+                raise ValueError(f"Invalid rendered markdown {raw_rendered} {first}")
 
         rendered = SlackRenderer.postprocess(raw_rendered)
 
         return (rendered, reference_md)
+
+
+from slack_sdk.web import WebClient
+
+
+class SlackChunker(Chunker):
+    def __init__(
+        self,
+        client: WebClient,
+        channel: str,
+        thread_ts: str,
+        max_chunk_size: int = 1024,
+    ):
+        super().__init__(max_chunk_size)
+        self.client = client
+        self.channel = channel
+        self.thread_ts = thread_ts
+
+    def _fix_rendered(self, elements):
+        if len(elements) == 1 and elements[0]["type"] == "_embed_file":
+            # ファイルを埋め込む場合、Slack APIで投稿して、URLを返す
+            file = elements[0]["content"]
+            name = elements[0]["name"]
+            self.client.files_upload_v2(
+                channels=self.channel,
+                thread_ts=self.thread_ts,
+                filename=name,
+                file=file,
+            )
+            return [
+                {
+                    "type": "rich_text_section",
+                    "elements": [
+                        {
+                            "type": "text",
+                            "text": f"[表を埋め込みました]",
+                        }
+                    ],
+                }
+            ]
+        return super()._fix_rendered(elements)
+
+    def consume(self):
+        result = super().consume()
+        if result is None:
+            return None
+
+        blocks, reference_md = result
+        try:
+            self.client.chat_postMessage(
+                channel=self.channel,
+                thread_ts=self.thread_ts,
+                text=reference_md,
+                blocks=blocks,
+            )
+        except Exception as e:
+            from json import dumps
+
+            raise Exception(f"Failed to post message: {e} {dumps(blocks)}")

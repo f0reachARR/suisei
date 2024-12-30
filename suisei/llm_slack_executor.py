@@ -15,7 +15,7 @@ from google.genai.types import (
     GenerateContentResponse,
 )
 
-from .slack_markdown.chunker import Chunker
+from .slack_markdown.chunker import SlackChunker
 from .env import (
     GEMINI_API_KEY,
     GEMINI_MODEL,
@@ -37,7 +37,6 @@ def _model_streamer(
     thread_ts: str,
     messages: List[Content],
 ):
-    print(build_system_prompt(context))
     response = gemini.models.generate_content_stream(
         model=GEMINI_MODEL,
         contents=messages,
@@ -56,26 +55,19 @@ def _model_streamer(
     # 長過ぎるメッセージはSlackが受け付けないため、分割して投稿する
     # streamなので、だんだん投稿される感じになる
     chunks: List[GenerateContentResponse] = []
-    chunker = Chunker()
+    chunker = SlackChunker(
+        client=client,
+        channel=channel,
+        thread_ts=thread_ts,
+    )
 
     def flush():
         nonlocal chunker
-        nonlocal client
-        nonlocal channel
-        nonlocal thread_ts
 
         while True:
             result = chunker.consume()
             if result is None:
                 break
-
-            blocks, text = result
-            client.chat_postMessage(
-                channel=channel,
-                text=text,
-                thread_ts=thread_ts,
-                blocks=blocks,
-            )
 
             time.sleep(1)  # 連続投稿を避けるために1秒待つ
 

@@ -1,3 +1,3 @@
-from suisei import main
+from suisei.main import main
 
 main()

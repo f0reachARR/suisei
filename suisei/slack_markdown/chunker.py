@@ -1,3 +1,4 @@
+import logging
 from typing import List, Tuple
 from marko import Markdown
 from marko.element import Element
@@ -156,11 +157,15 @@ class SlackChunker(Chunker):
             # ファイルを埋め込む場合、Slack APIで投稿して、URLを返す
             file = elements[0]["content"]
             name = elements[0]["name"]
+
+            from io import BytesIO
+
+            file_bytes = BytesIO(file.encode("utf-8"))
             self.client.files_upload_v2(
                 channels=self.channel,
                 thread_ts=self.thread_ts,
                 filename=name,
-                file=file,
+                file=file_bytes,
             )
             return [
                 {
@@ -191,4 +196,12 @@ class SlackChunker(Chunker):
         except Exception as e:
             from json import dumps
 
-            raise Exception(f"Failed to post message: {e} {dumps(blocks)}")
+            logging.error(f"Failed to post message: {e} {dumps(blocks)}")
+
+            self.client.chat_postMessage(
+                channel=self.channel,
+                thread_ts=self.thread_ts,
+                text=reference_md,
+            )
+
+        return result

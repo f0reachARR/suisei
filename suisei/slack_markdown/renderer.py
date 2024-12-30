@@ -33,6 +33,10 @@ class SlackRenderer(Renderer):
                     )
                 rendered.append(child)
                 rich_text_children = []
+            elif isinstance(child, dict) and not child["type"].startswith("rich_text"):
+                rich_text_children.append(
+                    {"type": "rich_text_section", "elements": [child]}
+                )
             else:
                 rich_text_children.append(child)
 

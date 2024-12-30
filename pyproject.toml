@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "deepdiff>=8.1.1",
     "google-genai>=0.3.0",
     "litellm>=1.55.12",
     "marko>=2.1.2",

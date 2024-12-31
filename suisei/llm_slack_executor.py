@@ -95,10 +95,10 @@ def _model_streamer(
             break
 
     # 最後のメッセージを投稿
-    chunker.finish()
+    print(chunker.finish())
     flush()
 
-    print(chunks)
+    # print(chunks)
 
     try:
         grounding = chunks[-1].candidates[0].grounding_metadata.grounding_chunks

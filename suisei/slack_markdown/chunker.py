@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import List, Tuple
 from marko import Markdown
 from marko.element import Element
@@ -6,6 +7,8 @@ from marko.block import Document
 from marko.md_renderer import MarkdownRenderer
 from .extensions import SLACK_EXTENSION
 from suisei.slack_markdown.renderer import SlackRenderer
+
+INLINE_CODEBLOCK_RE = re.compile(r"(.+)```")
 
 
 class Chunker:
@@ -27,8 +30,20 @@ class Chunker:
 
         self.finished = False
 
-    def _strip_line(line: str) -> str:
-        return line.rstrip("\n ")
+    @staticmethod
+    def _fix_line(line: str) -> List[str]:
+        line = line.rstrip("\n ")
+        lines = [line]
+
+        def _fix_inline_codeblock(line: str) -> List[str]:
+            # 行末に来てるコードブロック
+            match = INLINE_CODEBLOCK_RE.match(line)
+            if match:
+                return [match.group(1), "```"]
+            return [line]
+
+        lines = sum([_fix_inline_codeblock(line) for line in lines], [])
+        return lines
 
     def feed(self, chunk: str):
         self.buffer += chunk
@@ -36,11 +51,16 @@ class Chunker:
 
         if last_line >= 0:
             lines = self.buffer[:last_line].split("\n")
-            self.lines.extend([Chunker._strip_line(line) for line in lines])
+            self.lines.extend(sum([Chunker._fix_line(line) for line in lines], []))
             self.buffer = self.buffer[last_line + 1 :]
 
     def finish(self):
         self.finished = True
+        if len(self.buffer) > 0:
+            lines = self.buffer.split("\n")
+            self.lines.extend(sum([Chunker._fix_line(line) for line in lines], []))
+
+        return self.lines
 
     def _is_markdown_end(self, elements: List[Element]) -> bool:
         if self.finished:

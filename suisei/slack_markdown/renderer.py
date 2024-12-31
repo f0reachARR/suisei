@@ -246,7 +246,12 @@ class SlackRenderer(Renderer):
         return self._render_text_style(element, "strike")
 
     def render_inline_html(self, element: inline.InlineHTML) -> str:
-        return cast(str, element.children)
+        return [
+            {
+                "type": "rich_text_section",
+                "elements": [{"type": "text", "text": cast(str, element.children)}],
+            }
+        ]
 
     def render_code_span(self, element: inline.CodeSpan) -> str:
         return self._render_text_style(element, "code")

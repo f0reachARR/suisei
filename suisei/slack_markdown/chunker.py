@@ -144,7 +144,10 @@ class Chunker:
 
         self.index += len(first)
 
-        raw_rendered = self.md.render(doc)
+        try:
+            raw_rendered = self.md.render(doc)
+        except Exception as e:
+            logging.error(f"Failed to render markdown: {e} {reference_md}")
         if not SlackRenderer.validate(raw_rendered):
             raw_rendered = self._fix_rendered(raw_rendered)
             if not SlackRenderer.validate(raw_rendered):

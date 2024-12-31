@@ -228,7 +228,7 @@ class SlackRenderer(Renderer):
             modified = []
             for child in children:
                 if isinstance(child, dict):
-                    assert child["type"] in ["text", "emoji", "link"]
+                    assert child["type"] in ["text", "emoji", "link"], child
                     child["style"] = child.get("style", {})
                     child["style"][style] = True
                 else:

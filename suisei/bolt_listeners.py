@@ -49,6 +49,7 @@ def _responder(
         history = client.conversations_replies(
             channel=channel,
             ts=thread_ts,
+            include_all_metadata=True,
         )
 
         # 全件取得できていない場合はエラーを返す

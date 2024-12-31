@@ -209,9 +209,16 @@ class SlackChunker(Chunker):
             self.client.chat_postMessage(
                 channel=self.channel,
                 thread_ts=self.thread_ts,
-                text=reference_md,
+                metadata={
+                    "event_type": "suisei_blocks",
+                    "event_payload": {
+                        "raw_text": reference_md,
+                    },
+                },
                 blocks=blocks,
             )
+
+            print(reference_md)
         except Exception as e:
             from json import dumps
 

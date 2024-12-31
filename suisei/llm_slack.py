@@ -15,7 +15,16 @@ def create_chat(context: BoltContext, message: dict) -> Content | None:
     ts = parse_ts(message["ts"])
     dt = datetime_to_string(ts)
 
+    if message.get("metadata", {}).get("event_type") == "suisei_blocks":
+        text = (
+            message.get("metadata", {}).get("event_payload", {}).get("raw_text", text)
+        )
+        text = text.replace("* * *", "---")
+
+    print(text, message)
+
     if user_id == context.bot_user_id:
+        assert len(text) > 0
         return Content(role="model", parts=[Part(text=text)])
 
     else:

@@ -128,7 +128,6 @@ class Chunker:
         first = consumable[0]
 
         # 空の場合は無視
-        print(first)
         if self._is_empty(first):
             self.index += len(first)
             return None

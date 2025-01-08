@@ -9,7 +9,7 @@ services:
     image: valkey/valkey
     restart: on-failure
     environment:
-      - VALKEY_EXTRA_FLAGS="--save 60 1"
+      - VALKEY_EXTRA_FLAGS=--save 60 1
     volumes:
       - valkey:/data
 

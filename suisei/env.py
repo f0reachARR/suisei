@@ -26,21 +26,6 @@ SLACK_APP_LOG_LEVEL = os.environ.get("SLACK_APP_LOG_LEVEL", "INFO")
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
 
-GEMINI_SAFETY_SETTINGS = [
-    {
-        "category": "HARM_CATEGORY_HARASSMENT",
-        "threshold": "BLOCK_LOW_AND_ABOVE",
-    },
-    {
-        "category": "HARM_CATEGORY_HATE_SPEECH",
-        "threshold": "BLOCK_LOW_AND_ABOVE",
-    },
-    {
-        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "threshold": "BLOCK_LOW_AND_ABOVE",
-    },
-    {
-        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "threshold": "BLOCK_LOW_AND_ABOVE",
-    },
-]
+VALKEY_HOST = os.environ.get("VALKEY_HOST", "valkey")
+VALKEY_PORT = int(os.environ.get("VALKEY_PORT", "6379"))
+VALKEY_DB = int(os.environ.get("VALKEY_DB", "0"))

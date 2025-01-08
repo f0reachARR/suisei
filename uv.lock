@@ -117,6 +117,15 @@ wheels = [
 ]
 
 [[package]]
+name = "async-timeout"
+version = "5.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233 },
+]
+
+[[package]]
 name = "attrs"
 version = "24.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1436,6 +1445,7 @@ dependencies = [
     { name = "requests" },
     { name = "slack-bolt" },
     { name = "slack-sdk" },
+    { name = "valkey" },
 ]
 
 [package.metadata]
@@ -1453,6 +1463,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.3" },
     { name = "slack-bolt", specifier = ">=1.22.0" },
     { name = "slack-sdk", specifier = ">=3.34.0" },
+    { name = "valkey", specifier = ">=6.0.2" },
 ]
 
 [[package]]
@@ -1547,6 +1558,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/aa/63/e53da845320b757bf29ef6a9062f5c669fe997973f966045cb019c3f4b66/urllib3-2.3.0.tar.gz", hash = "sha256:f8c5449b3cf0861679ce7e0503c7b44b5ec981bec0d1d3795a07f1ba96f0204d", size = 307268 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/19/4ec628951a74043532ca2cf5d97b7b14863931476d117c471e8e2b1eb39f/urllib3-2.3.0-py3-none-any.whl", hash = "sha256:1cee9ad369867bfdbbb48b7dd50374c0967a0bb7710050facf0dd6911440e3df", size = 128369 },
+]
+
+[[package]]
+name = "valkey"
+version = "6.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "async-timeout", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/45/f7/b552b7a67017e6233cd8a3b783ce8c4b548e29df98daedd7fb4c4c2cc8f8/valkey-6.0.2.tar.gz", hash = "sha256:dc2e91512b82d1da0b91ab0cdbd8c97c0c0250281728cb32f9398760df9caeae", size = 4602149 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/cb/b1eac0fe9cbdbba0a5cf189f5778fe54ba7d7c9f26c2f62ca8d759b38f52/valkey-6.0.2-py3-none-any.whl", hash = "sha256:dbbdd65439ee0dc5689502c54f1899504cc7268e85cb7fe8935f062178ff5805", size = 260101 },
 ]
 
 [[package]]

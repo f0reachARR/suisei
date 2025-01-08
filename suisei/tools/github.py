@@ -1,7 +1,10 @@
 import os
-from typing import Self
+from typing import List, Self
 from github import Github, GithubIntegration
 from github.Auth import AppAuth
+
+from google.genai.types import FunctionDeclaration
+from google.genai import Client
 
 
 class GitHubTools:
@@ -30,11 +33,12 @@ class GitHubTools:
         ----------
         repo : str
             Repository name. Consists of owner and repository name. e.g. "{owner}/{repo}"
+            It can be found in the URL of the repository.
             Do not include ".git" at the end of the repository name.
-        ref : str, optional
-            Branch name, by default empty and return default branch files
-        path : str, optional
-            Path to get files, by default empty and return root files
+        ref : str
+            Branch name. Setting empty will return default branch files
+        path : str
+            Path to get files. Setting empty will return root files
 
         Returns
         -------
@@ -43,7 +47,44 @@ class GitHubTools:
         """
         repo = self._get_repo(repo)
         ref = ref if ref != "" else repo.default_branch
+        path = path if path != "" else "/"
         contents = repo.get_contents(path, ref)
         return "\n".join(
             [f"{content.type} {content.name} {content.size}" for content in contents]
         )
+
+    def get_github_file_content(self, repo: str, path: str, ref: str = "") -> str:
+        """Get file content from repository.
+
+        Parameters
+        ----------
+        repo : str
+            Repository name. Consists of owner and repository name. e.g. "{owner}/{repo}"
+            It can be found in the URL of the repository.
+            Do not include ".git" at the end of the repository name.
+        path : str
+            Path to get file content
+        ref : str
+            Branch name. Setting empty will return default branch files
+
+        Returns
+        -------
+        str
+            File content
+        """
+        repo = self._get_repo(repo)
+        ref = ref if ref != "" else repo.default_branch
+        content = repo.get_contents(path, ref)
+        return content.decoded_content
+
+    def function_declarations(self, client: Client) -> List[FunctionDeclaration]:
+        return [
+            FunctionDeclaration.from_function(client, self.get_github_files),
+            FunctionDeclaration.from_function(client, self.get_github_file_content),
+        ]
+
+    def function_dict(self) -> dict:
+        return {
+            "get_github_files": self.get_github_files,
+            "get_github_file_content": self.get_github_file_content,
+        }

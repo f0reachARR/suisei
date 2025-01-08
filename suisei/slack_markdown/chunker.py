@@ -93,6 +93,12 @@ class Chunker:
             else:
                 chunk.append(element)
 
+            ref_md = self._render_md(chunk)
+            if len(ref_md) > self.max_chunk_size * 2:
+                # 2倍以上になったら区切る
+                result.append(chunk)
+                chunk = []
+
         if len(chunk) > 0:
             result.append(chunk)
 
@@ -111,6 +117,11 @@ class Chunker:
 
     def _fix_rendered(self, elements: List[dict]) -> List[dict]:
         return elements
+
+    def _render_md(self, elements: List[Element]) -> str:
+        doc = Document()
+        doc.children = elements
+        return self.md_ref.render(doc)
 
     def consume(self) -> Tuple[dict, str] | None:
         markdown = "\n".join(self.lines)
@@ -135,7 +146,7 @@ class Chunker:
         doc = Document()
         doc.children = first
 
-        reference_md = self.md_ref.render(doc)
+        reference_md = self._render_md(first)
 
         if len(consumable) == 1 and not self.finished:
             # これが途中のchunkの最後の場合、短すぎると分かれすぎるため待つ

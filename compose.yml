@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    image: suisei
     env_file:
       - .env
     restart: on-failure

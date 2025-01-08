@@ -24,7 +24,8 @@ def create_chat(context: BoltContext, message: dict) -> Content | None:
     print(text, message)
 
     if user_id == context.bot_user_id:
-        assert len(text) > 0
+        if text == "":
+            return None
         return Content(role="model", parts=[Part(text=text)])
 
     else:

@@ -10,6 +10,9 @@ from marko import block, inline
 from marko.ext.gfm.elements import Table
 
 
+TEXT_TYPES = ["text", "emoji", "link", "user", "channel"]
+
+
 class SlackRenderer(Renderer):
     def __init__(self) -> None:
         super().__init__()
@@ -228,7 +231,7 @@ class SlackRenderer(Renderer):
             modified = []
             for child in children:
                 if isinstance(child, dict):
-                    assert child["type"] in ["text", "emoji", "link"], child
+                    assert child["type"] in TEXT_TYPES, child
                     child["style"] = child.get("style", {})
                     child["style"][style] = True
                 else:
